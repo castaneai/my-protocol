@@ -6,7 +6,7 @@ import (
 	"golang.org/x/text/transform"
 )
 
-type PacketPacker struct{}
+type PacketPacker struct{ transform.NopResetter }
 
 func (p *PacketPacker) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err error) {
 	nSrc = len(src)
@@ -18,5 +18,3 @@ func (p *PacketPacker) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, e
 	nDst += 2
 	return
 }
-
-func (p *PacketPacker) Reset() {}
