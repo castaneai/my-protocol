@@ -63,3 +63,13 @@ func TestPacketUnpacker_Transform_WithMultiPacket(t *testing.T) {
 		assert.Equal(t, "world", string(p2[:n]))
 	}
 }
+
+func TestPacketUnpacker_Transform_WithShortSource(t *testing.T) {
+	r := bytes.NewReader([]byte{0x05, 0x00, 0x68, 0x65})
+	br := &shortReader{r: r, size: 8}
+	pr := transform.NewReader(br, &PacketUnpacker{})
+
+	p := make([]byte, 1024)
+	_, err := pr.Read(p)
+	assert.Equal(t, transform.ErrShortSrc, err)
+}
