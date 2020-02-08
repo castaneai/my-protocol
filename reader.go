@@ -6,9 +6,16 @@ import (
 	"golang.org/x/text/transform"
 )
 
-type PacketUnpacker struct{ transform.NopResetter }
+type PacketUnpacker struct {
+	rest []byte
+}
 
 func (p *PacketUnpacker) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err error) {
+	npRest := len(p.rest)
+	if npRest > 0 {
+		src = append(p.rest, src...)
+		p.rest = nil
+	}
 	if atEOF && len(src) == 0 {
 		return
 	}
@@ -22,9 +29,19 @@ func (p *PacketUnpacker) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int,
 		return
 	}
 	nDst = copy(dst, src[2:2+size])
-	nSrc = 2 + nDst
+	nSrc = 2 + nDst - npRest
 	if nDst < size {
 		err = transform.ErrShortDst
+		return
+	}
+	nRest := len(src[2+size:])
+	if nRest > 0 {
+		p.rest = make([]byte, nRest)
+		nSrc += copy(p.rest, src[2+size:])
 	}
 	return
+}
+
+func (p *PacketUnpacker) Reset() {
+	p.rest = nil
 }
