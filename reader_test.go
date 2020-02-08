@@ -2,8 +2,6 @@ package my_protocol
 
 import (
 	"bytes"
-	"crypto/aes"
-	"crypto/rand"
 	"io"
 	"testing"
 
@@ -81,17 +79,9 @@ func TestPacketUnpacker_Transform_WithShortSource(t *testing.T) {
 }
 
 func TestEncryptedPacketUnpacker_Transform(t *testing.T) {
-	key := make([]byte, 32)
-	if _, err := io.ReadFull(rand.Reader, key); err != nil {
-		t.Fatal(err)
-	}
-	cip, err := aes.NewCipher(key)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	plaintext := padPKCS7([]byte("hello"))
 	ciphertext := make([]byte, len(plaintext))
+	cip := newAES256WithRandomKey()
 	cip.Encrypt(ciphertext, plaintext)
 
 	r := bytes.NewReader(ciphertext)
@@ -106,17 +96,9 @@ func TestEncryptedPacketUnpacker_Transform(t *testing.T) {
 }
 
 func TestChainTransformers(t *testing.T) {
-	key := make([]byte, 32)
-	if _, err := io.ReadFull(rand.Reader, key); err != nil {
-		t.Fatal(err)
-	}
-	cip, err := aes.NewCipher(key)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	plaintext := padPKCS7([]byte("hello"))
 	ciphertext := make([]byte, len(plaintext))
+	cip := newAES256WithRandomKey()
 	cip.Encrypt(ciphertext, plaintext)
 
 	var b bytes.Buffer

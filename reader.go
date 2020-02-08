@@ -1,8 +1,6 @@
 package my_protocol
 
 import (
-	"bytes"
-	"crypto/aes"
 	"crypto/cipher"
 	"encoding/binary"
 
@@ -60,15 +58,4 @@ func (p *EncryptedPacketUnpacker) Transform(dst, src []byte, atEOF bool) (nDst, 
 	udst := unpadPKCS7(dst[:nSrc])
 	nDst = len(udst)
 	return
-}
-
-func padPKCS7(b []byte) []byte {
-	padSize := aes.BlockSize - (len(b) % aes.BlockSize)
-	pad := bytes.Repeat([]byte{byte(padSize)}, padSize)
-	return append(b, pad...)
-}
-
-func unpadPKCS7(b []byte) []byte {
-	padSize := int(b[len(b)-1])
-	return b[:len(b)-padSize]
 }
