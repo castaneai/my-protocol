@@ -1,6 +1,9 @@
 package my_protocol
 
 import (
+	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
 	"encoding/binary"
 
 	"golang.org/x/text/transform"
@@ -44,4 +47,28 @@ func (p *PacketUnpacker) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int,
 
 func (p *PacketUnpacker) Reset() {
 	p.rest = nil
+}
+
+type EncryptedPacketUnpacker struct {
+	transform.NopResetter
+	cip cipher.Block
+}
+
+func (p *EncryptedPacketUnpacker) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err error) {
+	nSrc = len(src)
+	p.cip.Decrypt(dst, src)
+	udst := unpadPKCS7(dst[:nSrc])
+	nDst = len(udst)
+	return
+}
+
+func padPKCS7(b []byte) []byte {
+	padSize := aes.BlockSize - (len(b) % aes.BlockSize)
+	pad := bytes.Repeat([]byte{byte(padSize)}, padSize)
+	return append(b, pad...)
+}
+
+func unpadPKCS7(b []byte) []byte {
+	padSize := int(b[len(b)-1])
+	return b[:len(b)-padSize]
 }

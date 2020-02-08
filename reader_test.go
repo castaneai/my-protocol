@@ -2,6 +2,8 @@ package my_protocol
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/rand"
 	"io"
 	"testing"
 
@@ -13,11 +15,13 @@ import (
 func TestPacketUnpacker_Transform(t *testing.T) {
 	r := bytes.NewReader([]byte{0x05, 0x00, 0x68, 0x65, 0x6c, 0x6c, 0x6f})
 	pr := transform.NewReader(r, &PacketUnpacker{})
-	var b bytes.Buffer
-	if _, err := io.Copy(&b, pr); err != nil {
+
+	p := make([]byte, 10)
+	n, err := pr.Read(p)
+	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, "hello", string(b.Bytes()))
+	assert.Equal(t, "hello", string(p[:n]))
 }
 
 type shortReader struct {
@@ -33,11 +37,13 @@ func TestPacketUnpacker_Transform_WithShortBuffer(t *testing.T) {
 	r := bytes.NewReader([]byte{0x05, 0x00, 0x68, 0x65, 0x6c, 0x6c, 0x6f})
 	br := &shortReader{r: r, size: 1}
 	pr := transform.NewReader(br, &PacketUnpacker{})
-	var b bytes.Buffer
-	if _, err := io.Copy(&b, pr); err != nil {
+
+	p := make([]byte, 10)
+	n, err := pr.Read(p)
+	if err != nil {
 		t.Fatal(err)
 	}
-	assert.Equal(t, "hello", string(b.Bytes()))
+	assert.Equal(t, "hello", string(p[:n]))
 }
 
 func TestPacketUnpacker_Transform_WithMultiPacket(t *testing.T) {
@@ -72,4 +78,60 @@ func TestPacketUnpacker_Transform_WithShortSource(t *testing.T) {
 	p := make([]byte, 1024)
 	_, err := pr.Read(p)
 	assert.Equal(t, transform.ErrShortSrc, err)
+}
+
+func TestEncryptedPacketUnpacker_Transform(t *testing.T) {
+	key := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, key); err != nil {
+		t.Fatal(err)
+	}
+	cip, err := aes.NewCipher(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	plaintext := padPKCS7([]byte("hello"))
+	ciphertext := make([]byte, len(plaintext))
+	cip.Encrypt(ciphertext, plaintext)
+
+	r := bytes.NewReader(ciphertext)
+	pr := transform.NewReader(r, &EncryptedPacketUnpacker{cip: cip})
+
+	p := make([]byte, 10)
+	n, err := pr.Read(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, "hello", string(p[:n]))
+}
+
+func TestChainTransformers(t *testing.T) {
+	key := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, key); err != nil {
+		t.Fatal(err)
+	}
+	cip, err := aes.NewCipher(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	plaintext := padPKCS7([]byte("hello"))
+	ciphertext := make([]byte, len(plaintext))
+	cip.Encrypt(ciphertext, plaintext)
+
+	var b bytes.Buffer
+	w := transform.NewWriter(&b, &PacketPacker{})
+	if _, err := w.Write(ciphertext); err != nil {
+		t.Fatal(err)
+	}
+
+	tr := transform.Chain(&PacketUnpacker{}, &EncryptedPacketUnpacker{cip: cip})
+	pr := transform.NewReader(&b, tr)
+
+	p := make([]byte, 10)
+	n, err := pr.Read(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, "hello", string(p[:n]))
 }
